@@ -1,5 +1,19 @@
+% set up transport and grid file
+Tname = '/global/cfs/cdirs/e3sm/weiweif/MPAS_IRF/build_ops_MPAS_IRFVH/T_iocn_mo_00.mat';
+if exist(Tname,'file') == 0
+  Tname = '/DFS-L/DATA/moore/weiweif/MPAS-BGC/Data/T_iocn_mo_00.mat';
+end
+GRDname = '/global/cfs/cdirs/e3sm/weiweif/MPAS_IRF/Mask_TTM/MSK_60km.mat';
+if exist(GRDname,'file') == 0
+  GRDname = '/DFS-L/DATA/moore/weiweif/MPAS-BGC/Data/MSK_60km.mat';
+end
+
 % load MPAS-O transport matrix
-% load /global/cfs/cdirs/e3sm/weiweif/MPAS_IRF/build_ops_MPAS_IRFVH/T_iocn_mo_00.mat;
+disp('load Transport operator: T');
+load(Tname); 
+% load MPAS GRID info
+disp('load MPAS-O GRID: GRD');
+load(GRDname); 
 
 P.spyr         = 60*60*24*365;
 P.lam          = log(2)/(5730*P.spyr);   % c14 decay rate [s^-1]
@@ -23,6 +37,8 @@ LHS = T + P.R14  + P.Ras;
 RHS = P.Ras*P.So;
 
 % X = LHS \ RHS;
-% LP = mfactor(LHS));
-% X = mfactor(LP,RHS));
-% c14age = -log.(X)./(P.lam*P.spyr)
+disp('Factorize LHS of the C14 equation');
+LP = mfactor(LHS);
+X = mfactor(LP,RHS);
+c14age = -log(X)/(P.lam*P.spyr)
+save('c14age.mat','X','c14age','-v7.3');
