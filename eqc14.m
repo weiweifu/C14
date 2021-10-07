@@ -51,7 +51,7 @@ A = [T+L+lam*I];
 % toc
 % %R = A\b;
 % ILU and gmres to solve A\b
-% [X,fl0,rr0,it0,rv0] = myilu(A,b);
-% c14age = M3d+nan;
-% c14age(iocn) = -log(R)/lam;
-% save('c14age.mat','R','c14age','-v7.3');
+[X,fl0,rr0,it0,rv0] = myilu(A,b);
+c14age = M3d+nan;
+c14age(iocn) = -log(X)/lam;
+save('c14age.mat','X','c14age','-v7.3');

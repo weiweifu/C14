@@ -11,6 +11,7 @@ switch lower(mach)
   case 'gp'
     dir0 = '/DFS-L/DATA/moore/weiweif/MPAS-BGC/Data/';
     Tname = [dir0 'T_iocn_mo_00_' res '.mat'];
+    % Tname = [dir0 'T_iocn_mo_01_60km_convt.mat'];
     GRDname = [dir0 'MSK_' res '.mat'];
   otherwise
     disp('not a correct resolution');
@@ -19,6 +20,7 @@ end
 % load MPAS-O transport matrix
 disp('load Transport operator: T');
 load(Tname); 
+ind = find(isnan(T)); T(ind)=0;
 % load MPAS GRID info
 disp('load MPAS-O GRID: GRD');
 load(GRDname); 
