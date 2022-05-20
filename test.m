@@ -1,7 +1,13 @@
 % set up transport and grid file
+rdir = '/DFS-L/DATA/moore/weiweif/MPAS-BGC/';
 res = '240km';
+% res = '60km';
 % mach = 'cori';
 mach = 'gp';
+model = 'iage';
+
+TTM = {'A','H','D','T'};
+fnp = '_iocn_mo_00_';
 
 switch lower(mach)
   case 'cori'
@@ -9,25 +15,41 @@ switch lower(mach)
     Tname = [dir0 'T_iocn_mo_00_' res '.mat'];
     GRDname = ['MSK_' res '.mat'];
   case 'gp'
-    dir0 = '/DFS-L/DATA/moore/weiweif/MPAS-BGC/Data/';
-    Tname = [dir0 'T_iocn_mo_00_' res '.mat'];
+    % dir0 = '/DFS-L/DATA/moore/weiweif/MPAS-BGC/Data/';
+    dir0 = [rdir 'Mask_TTM/'];
+    % Tname = ['T_iocn_mo_00_' res '.mat'];
+    GRDname = ['MSK_' res '.mat'];
     % Tname = [dir0 'T_iocn_mo_01_60km_convt.mat'];
-    GRDname = [dir0 'MSK_' res '.mat'];
+    % GRDname = ['MSK_240km_dst.mat'];
   otherwise
     disp('not a correct resolution');
 end
 
 % load MPAS-O transport matrix
-disp('load Transport operator: T');
-load(Tname); 
-ind = find(isnan(T)); T(ind)=0;
-% load MPAS GRID info
-disp('load MPAS-O GRID: GRD');
-load(GRDname); 
+for i=1:length(TTM)
+  Tname = sprintf('%s%s%s%s',TTM{i},fnp,res,'.mat'); 
+  disp(['Now loading ' Tname]);
+  load([dir0 Tname]);
+  % ind = find(isnan(T)); T(ind)=0;
+end
 
-P.spyr         = 60*60*24*365;
-P.lam          = log(2)/(5730*P.spyr);   % c14 decay rate [s^-1]
-P.tau          = 2*P.spyr;               % air-sea c14 exchange timesale [s]
+TRdiv = ( A - D + H );
+
+% load MPAS GRID info
+disp(['Now loading ' GRDname ' to: GRD']);
+load([dir0 GRDname]); 
+
+% load Lump and Spray operators
+load([rdir 'Mask_TTM/Lump_Spray2.mat'],'L'); 
+load([rdir 'Mask_TTM/Lump_Spray.mat'], 'S'); 
+
+P.spy          = 60*60*24*365;
+P.lam          = log(2)/(5730*P.spy);   % c14 decay rate [s^-1]
+if strcmp(model,'c14')
+  P.tau          = 2*P.spy;               % air-sea c14 exchange timesale [s]
+else
+  P.tau          = 1/365*P.spy;           % air-sea ideal age restoring timesale [s]
+end
 
 [ny,nz] = size(GRD.MASK);
 iocn       = GRD.iocn;
@@ -38,17 +60,50 @@ P.R14 = P.lam*P.Rmask;             % make decay rate operator
 P.R14 = d0(P.R14(iocn) );          
 
 P.Ras = P.Rmask/P.tau;             % make air-sea rate operator (const)
-P.Ras(:,:,2:end) = 0;
+P.Ras(:,2:end) = 0;
 P.Ras = d0(P.Ras(iocn) );
 P.So  = ones(n_iocn,1);            % atm C14 ratio (const)
  
-% $$ \frac{dR}{dt} + \left[\mathbf{T}+\lambda\mathbf{I}+\kappa\boldsymbol{\Lambda}\right]R = \kappa\boldsymbol{\Lambda}\mathbf{1}$$
-LHS = T + P.R14  + P.Ras;
-RHS = P.Ras*P.So;
+P.init = P.Ras(iocn)*P.tau;
 
-disp('Factorize LHS of the C14 equation');
+% $$ \frac{dR}{dt} + \left[\mathbf{T}+\lambda\mathbf{I}+\kappa\boldsymbol{\Lambda}\right]R = \kappa\boldsymbol{\Lambda}\mathbf{1}$$
+if strcmp(model,'c14')
+  disp(['Set up ' model ' model']);
+  LHS = TRdiv + P.R14  + P.Ras;
+  RHS = P.Ras*P.So;
+else
+  LHS = TRdiv +  P.Ras;
+  RHS = ones(size(LHS,1),1);
+end
+
+% define function handle of RHS
+if strcmp(model,'c14')
+  fh = @(t,y) -LHS*y(:) + RHS;
+else
+  fh = @(t,y) -LHS*y(:) + RHS;
+end
+
+disp(sprintf('Factorize LHS of the %s equation',model));
 % X = LHS \ RHS;
 LP = mfactor(LHS);
-X = mfactor(LP,RHS);
-c14age = -log(X)/(P.lam*P.spyr);
-save('c14age.mat','X','c14age','-v7.3');
+X = mfactor(LP,RHS)/P.spy;
+
+% disp(sprintf('Time stepping (%s) : Euler backward',model));
+% tspan = [ 0.0, P.spy*1.0/12/80 ];
+% y0 = P.init;
+% dt = 3600*0.5; 
+% n = round(( tspan(2) - tspan(1) ) / dt);
+% display(sprintf('There are %i iterations',n));
+% [tE,X] = beuler_fixed ( fh, tspan, y0, n );
+
+if strcmp(model,'c14')
+  % c14age = -log(X)/(P.lam*P.spy);
+  c14age = -log(X)/P.lam;
+  xx = mat2mpas(c14age,GRD);
+else
+  % xx = mat2mpas(X(end,:),GRD);
+  xx = mat2mpas(X,GRD);
+end
+
+% save('c14age.mat','X','c14age','-v7.3');
+% save('iage.mat','X','xx','-v7.3');
