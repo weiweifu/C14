@@ -33,7 +33,23 @@ for i=1:length(TTM)
   % ind = find(isnan(T)); T(ind)=0;
 end
 
-TRdiv = ( A - D + H );
+% TRdiv = ( A + D + H );
+
+% (H + A)*e1 = 0;
+e = randn(size(A,1),1);
+MF = mfactor(H + A);
+for i = 1:20
+  e1 = mfactor(MF,e);
+  e1 = e1./(e1.'*e1);
+end
+
+h0 = e1;
+TRdiv = ( A +  H + D.*spdiags(h0));
+% steay state ideal age equation: TRdiv*a = -h0;
+disp(sprintf('Factorize LHS of the %s equation',model));
+% X = LHS \ RHS;
+LP = mfactor(TRdiv);
+X = mfactor(LP,-h0);
 
 % load MPAS GRID info
 disp(['Now loading ' GRDname ' to: GRD']);
@@ -83,10 +99,10 @@ else
   fh = @(t,y) -LHS*y(:) + RHS;
 end
 
-disp(sprintf('Factorize LHS of the %s equation',model));
+% disp(sprintf('Factorize LHS of the %s equation',model));
 % X = LHS \ RHS;
-LP = mfactor(LHS);
-X = mfactor(LP,RHS)/P.spy;
+% LP = mfactor(LHS);
+% X = mfactor(LP,RHS)/P.spy;
 
 % disp(sprintf('Time stepping (%s) : Euler backward',model));
 % tspan = [ 0.0, P.spy*1.0/12/80 ];
@@ -99,11 +115,13 @@ X = mfactor(LP,RHS)/P.spy;
 if strcmp(model,'c14')
   % c14age = -log(X)/(P.lam*P.spy);
   c14age = -log(X)/P.lam;
-  xx = mat2mpas(c14age,GRD);
+  XM = mat2mpas(c14age,GRD);
+  save('c14age.mat','XM','X','c14age','-v7.3');
 else
   % xx = mat2mpas(X(end,:),GRD);
-  xx = mat2mpas(X,GRD);
+  XM = mat2mpas(X,GRD); % to mpas-o grid (ny,nz)
+  % save('iage.mat','X','XM','-v7.3');
 end
 
-% save('c14age.mat','X','c14age','-v7.3');
-% save('iage.mat','X','xx','-v7.3');
+% plot the 3th level of MPAS-O ideal age
+plotaa(GRD,XM,3,'v4');
