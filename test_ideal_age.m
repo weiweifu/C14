@@ -65,6 +65,7 @@ P.Ras = d0(P.Ras(iocn) );
 
 h  = GRD.DZT(iocn);
 %TRdiv = -d0(1./h)*( A +  H +  D*d0(h) ); 
+% TRdiv = -(D);
 TRdiv = -( d0(1./h)*H +  D  );
 
 LHS = TRdiv +  P.Ras;
@@ -75,8 +76,6 @@ disp(sprintf('Factorize LHS of the %s equation',model));
 % X = LHS \ RHS;
 LP = mfactor(LHS);
 X = mfactor(LP,RHS);
-
-
 
 % xx = mat2mpas(X(end,:),GRD);
 XM = mat2mpas(X,GRD); % to mpas-o grid (ny,nz)
